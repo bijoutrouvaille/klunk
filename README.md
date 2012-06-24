@@ -130,7 +130,7 @@ Options it can use:
 
 You can access global options directly with klunk.options, but a more recommended approach is to
 use klunk.set ({...}) as some options are nested and also that it maybe easier to store options
-in an external bootstrap file. klunk.set second approach recurs through passed object and assigns any
+in an external bootstrap file. klunk.set recurs through the passed object and assigns any
 values to the corresponding options keys.
 
 ##### A list of global options:
