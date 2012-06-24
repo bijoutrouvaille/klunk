@@ -11,7 +11,7 @@ importantly giving you a choice to execute each suite's specs either in parallel
 - Global or individual propagating options per suite
 - Miniature underscore utility
 - A simple, yet powerful syntax
-- Works as a module and in the browser
+- Works as a NodeJs module
 
 ### An Example
 
