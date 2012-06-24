@@ -31,7 +31,9 @@ describe ( "Your suite, just like in jasmine or mocha", function() {
 	it ( "of course can be asynchronous" , function (done) {
 		klunk._.delay (done, 1000)
 	})
+
 	describe ( "context, pre and post processing", function () {
+
 		topic ( "A setup function that only runs once", function (done /*optional*/) {
 			this.dry = true
 		});
@@ -47,14 +49,18 @@ describe ( "Your suite, just like in jasmine or mocha", function() {
 	} );
 
 	describe ( "options parameter", function () {
+
 		it ("can be passed to the control function which each suite returns" );
+
 		describe ( "within child suites", function () {
-			it ("takes precedence of, defaults to the suite", function () {})
+			it ("sets options for this and defaults for child suites",
+				function (done) {} )
 		} ) ({timeout: 50})
 
 	} ) ({timeout: 100, callback: function (suite, report) {}});
+
 	describe ("serial option", function () {
-		it ('causes child definition function to run in order they were defined' )
+		it ('causes child definition functions to run in order they were defined' )
 	}) ({serial:true});
 } );
 
