@@ -27,6 +27,7 @@
 			timeout: 5000,
 			silent: null,
 			nosolo: null,
+			callback: null,
 			report: {
 				color: true,
 				passed: null
@@ -36,13 +37,12 @@
 			opt = opt || klunk.options;
 			_.each (obj, function ( val, name ) {
 
-				if ( _.isObject (opt[name])) {
-					_.isObject (val) && klunk.set (val, opt[name])
+				if ( _.isJsObject (opt[name])) {
+					_.isJsObject (val) && klunk.set (val, opt[name])
 				} else {
 					opt[name] = val;
 				}
 			});
-			return exports;
 		},
 		init : function ( ) {
 			klunk.suite = klunk.top = klunk.newSuite();
@@ -155,6 +155,7 @@
 				suite.result.totalSpecs = suite.result.totalSpecs || suite.specs.length;
 
 				_.each ( suite.specs, function ( spec ) {
+					if (!spec.fn) return;
 					var result = spec.result;
 
 					result.timedOut = spec.fn.timedOut;
@@ -221,17 +222,23 @@
 					runSolo (isFn && options);
 					return kontrol ;
 				}
-				if (options.serial) suite.options.serial = true;
-				if (options.callback) suite.options.callback = options.callback;
-				if (options.timeout) suite.options.timeout = options.timeout;
-				if (options.silent) suite.options.silent = options.silent;
+
+				if (options.matchers) kontrol.addMatchers(options.matchers);
+				_.each (options, function ( value, name ) {
+					kontrol[name] && kontrol[name] (value)
+				});
 
 				return kontrol;
 			};
+			_.each (suite.options, function ( v, name ) {
+				kontrol[name] = function (value) {suite.options[name] = value;return kontrol}
+			});
 			_.extend ( kontrol, {
 				run : runSolo,
-				suite: suite
+				suite: suite,
+				addMatchers: function (obj) {_.extend(suite.matchers, obj);return kontrol}
 			});
+			kontrol.matchers = kontrol.addMatchers;
 
 			return kontrol
 		},
@@ -285,12 +292,16 @@
 			var kontrol = function (opt) {
 				opt = opt || {};
 				if (opt.timeout) fn.timeout = opt.timeout;
-				if (opt.matchers) _.extend(spec.matchers, opt.matchers);
+				if (opt.matchers) kontrol.addMatchers(opt.matchers);
+				if (opt.callback) kontrol.callback (opt.callback);
 				return kontrol;
 			};
 			_.extend ( kontrol, {
-				timeout: function (miliseconds) {fn.timeout = miliseconds; return kontrol}
+				timeout: function (miliseconds) {fn.timeout = miliseconds; return kontrol},
+				addMatchers: function (obj) {_.extend(spec.matchers, obj);return kontrol},
+				callback: function (fn) {spec.fn.callback=fn; return kontrol}
 			});
+			kontrol.matchers = kontrol.addMatchers;
 			return kontrol;
 		},
 		addManager: function ( type, args ) {
@@ -304,11 +315,15 @@
 			var kontrol = function (opt) {
 				opt = opt || {};
 				if ( opt.timeout ) fn.timeout = opt.timeout;
+				if ( opt.callback ) fn.callback = opt.callback;
 				return kontrol;
 			};
 			_.extend ( kontrol, {
 				timeout : function ( miliseconds ) {
 					return kontrol ({timeout : miliseconds})
+				},
+				callback : function (fn) {
+					return kontrol ({callback : fn})
 				}
 			} );
 			return kontrol;
@@ -379,7 +394,8 @@
 				return keys &&
 					_.intersect ( keys, expected ).length==expected.length
 			},
-			toEqual: function (expected) { return _.isEqual(this.actual, expected) }
+			toEqual: function (expected) { return _.isEqual(this.actual, expected) },
+			toStrictlyEqual: function (expected) { return _.isEqual(this.actual, expected, true) }
 		}
 	};
 
@@ -603,6 +619,7 @@
 			})
 		},
 		asyncWrap: function (fn, cx) {
+			cx = cx || null;
 
 			return function (next) {
 
@@ -758,11 +775,15 @@
 	exports.matchers = klunk.matchers;
 	exports._ = _;
 	exports.run = function (cb) {
-		klunk.run (cb);
+		klunk.run (function(suite, report){
+			cb && cb ( suite, report );
+			klunk.options.callback && klunk.options.callback ( suite, report )
+		});
 	};
 	exports.options = klunk.options;
 	exports.set = function ( options ) {
-		klunk.set ( options )
+		klunk.set ( options );
+		return exports;
 	};
 
 	exports.topic = {};

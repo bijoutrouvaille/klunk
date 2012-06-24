@@ -8,6 +8,7 @@
 var klunk = typeof window != 'undefined' ? window.klunk : require ( '../klunk' );
 var _ = klunk._;
 describe ( "klunk's it", function () {
+	it ( "can be empty" );
 	it ( "passes", function () {
 		this.expects ( true ).toBe ( true );
 		this.test = true;
@@ -225,6 +226,29 @@ describe ( "addMatchers method", function () {
 			this.expects ().toExtendFromNestedTopic ();
 		} );
 	} );
+	describe ( "in suite's kontrol object", function () {
+		it ( "attaches matchers to child specs", function () {
+			this.expects ().toBeAttachedBySuitesMethod ();
+		} );
+		describe ( "propagating to children", function () {
+			it ( "attaches matchers to child specs a level deeper", function () {
+				this.expects ().toBeAttachedBySuitesMethod ();
+			} );
+		} );
+	} ).addMatchers({toBeAttachedBySuitesMethod:function(){return true}});
+	describe ( "in spec's kontrol object", function () {
+		it ( "attaches matchers to child specs", function () {
+			this.expects ().toBeAttachedBySpecsMethod ();
+		} ).addMatchers({toBeAttachedBySpecsMethod:function(){return true}});
+	} );
+	describe ( "in background, processing options", function () {
+		it ( "can be attached to suite", function () {
+			this.expects().toBeAttachedBySuiteOption();
+		} );
+		it ( "can be attached to spec", function () {
+			this.expects().toBeAttachedBySpecOption();
+		} )({matchers:{toBeAttachedBySpecOption:function(){return true}}});
+	} ) ({matchers:{toBeAttachedBySuiteOption:function(){return true}}});
 } );
 
 klunk.topic.silent = false;
