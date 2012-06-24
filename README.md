@@ -73,7 +73,7 @@ klunk.run ()
 ### Options
 
 Klunk has a set of global options, and a set of options for each suite, preprocessor, postprocessor, and spec.
-The ease and accessibility of these is one of the most important features in clunk.
+The ease and accessibility of these is one of the most important features in klunk.
 
 Some options propagate down from parent to child. For example setting a timeout value for a suite will
 determine the timeout for all nested topic, coda, beforeEach, and afterEach methods at any level, unless
