@@ -116,24 +116,28 @@
 			var method = _.firstBoolean ( suite.options.serial, klunk.options.serial) ? "serial" : "parallel";
 			_[method] (ops, {method:'runChildren'}, done )
 		},
-		queDescriptors: function ( suite, name, topic ) {
+		cueDescriptors: function ( suite, name, topic ) {
 
 			var funs = suite.parent
-				? klunk.queDescriptors ( suite.parent, name, topic.parent )
+				? klunk.cueDescriptors ( suite.parent, name, topic.parent )
 				: [];
 
 			_.each (suite[name], function ( fn ) {
 
 				if ( fn.length ) {
-					funs.push ( function ( done ) {
+					var desc = function ( done ) {
 						var child = this.topic;
 						var cx = this;
 						this.topic = topic;
 						fn.call ( this, function () {
 							cx.topic = child;
-							done.apply ( this, arguments )
+							done.apply ( this, arguments );
 						} );
-					} )
+					};
+					desc.timedOut = function (val) {fn.timedOut = val};
+					desc.triggered = function (val) {fn.triggered = val};
+
+					funs.push ( desc )
 				} else {
 					funs.push ( function () {
 						var child = this.topic;
@@ -161,8 +165,8 @@
 						addMatchers: klunk.addMatchers.bind (spec.matchers)
 					};
 
-					var befores = klunk.queDescriptors(suite, 'befores', topic);
-					var afters = klunk.queDescriptors(suite, 'afters', topic);
+					var befores = klunk.cueDescriptors(suite, 'befores', topic);
+					var afters = klunk.cueDescriptors(suite, 'afters', topic);
 
 
 					var timeout = spec.fn.timeout || suite.options.timeout || klunk.options.timeout;
@@ -549,6 +553,12 @@
 		has: function (obj, key) {
 			return Object.prototype.hasOwnProperty.call(obj, key)
 		},
+		get:function (obj,key) {
+			return _.isFunction(obj[key]) ? obj[key].apply(obj, _.slice(arguments, 2)) : obj[key];
+		},
+		set: function ( obj, key, value ) {
+			_.isFunction(obj[key]) ? obj[key](value) : obj[key] = value;
+		},
 		isEmpty: function ( obj ) {
 
 			if (obj==null || !obj.length) return true;
@@ -579,33 +589,46 @@
 			return setTimeout ( fn.bind.apply ( fn, _.slice ( arguments, 2 ) ), miliseconds )
 
 		},
-		wait: function ( sleep, milliseconds, comparator, done, context) {
+		/**
+		 * @description Checks a given comparator function every [sleep] number of milliseconds
+		 * and times out after [timeout] milliseconds. If times out passes true to the callback.
+		 * @param {Number} [sleep=10]
+		 * @param {Number} [timeout=5000]
+		 * @param {Function} comparator
+		 * @param {Function} callback
+		 * @param {Object} [context]
+		 * @param {*} [arguments]
+		 */
+		wait: function () {
 
 			var args = _.toArray(arguments);
-			var ms=5*1000, sl=20, co, dn, cx;
+			var timeout=5*1000, sleep=20, comparator, callback, context;
 
-			if (_.isFunction (sleep)) {}
-			else if ( _.isFunction (milliseconds)) {
-				ms = args.shift();
+			if (_.isFunction (args[1]/*sleep*/)) {}
+			else if ( _.isFunction (args[0]/*timeout*/)) {
 			} else {
-				sl = args.shift();
-				ms = args.shift();
 			}
-			co = args.shift();
-			dn = args.shift();
-			cx = args.shift() || root;
+			if ( !_.isFunction(args[1])) {
+				sleep = args.shift();
+				timeout = args.shift();
+			} else if ( !_.isFunction(args[0])) {
+				timeout = args.shift();
+			}
+			comparator = args.shift();
+			callback = args.shift();
+			context = args.shift() || root;
 
 			var t = setTimeout(function () {
 				clearInterval(i);
-				dn.apply ( cx, args );
-			}, ms );
+				callback.call ( context, true );
+			}, timeout );
 			var i = setInterval(function () {
-				if ( co.apply ( cx, args ) ) {
+				if ( comparator.apply ( context, args ) ) {
 					clearTimeout ( t );
 					clearInterval ( i );
-					dn.apply ( cx, args );
+					callback.call ( context, false );
 				}
-			}, sl );
+			}, sleep );
 		},
 		serial : function ( funs, cx, done ) {
 
@@ -666,14 +689,14 @@
 				function done ( timedOut, error ) {
 					if (timedOut) {
 						var timeoutError = new _.TimeoutError ("An asynchronous function timed out");
+						_.set ( fn, 'timedOut', timedOut && timeoutError );
 						next ( timeoutError );
-						fn.timedOut = fn.timedOut || timedOut && timeoutError;
 					} else {
 						next  ( error );
 					}
 				}
 
-				fn.triggered = true;
+				_.set ( fn, 'triggered', true );
 
 				if ( fn.length ) {
 					if ( timeout ) {
@@ -812,7 +835,11 @@
 	* */
 	exports.matchers = klunk.matchers;
 	exports._ = _;
-	exports.run = function (cb) {
+	exports.run = function (opt) {
+		var cb = _.isFunction(opt) && opt;
+		if ( _.isJsObject(opt)) {
+			klunk.set(opt);
+		}
 		klunk.run (function(suite, report){
 			cb && cb ( suite, report );
 			klunk.options.callback && klunk.options.callback ( suite, report )

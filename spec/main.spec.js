@@ -362,7 +362,7 @@ describe ( "Callback fixture", function () {
 
 } ) ( {silent : true, timeout:10000, callback : function ( suite ) {
 	klunk.topic.kallback = suite;
-}} ) ();
+}} )();
 _.wait ( function () { return klunk.topic.kallback }, function () {
 
 	describe ( "Suite callback", function () {
@@ -467,7 +467,7 @@ xdescribe ( "TerminalReporter", function () {
 		coda ( "sharpen your tongue", function ( done ) {
 		} );
 	} );
-} ) ({timeout:1})();
+} ) ({timeout:1});
 
 describe ( "klunk underscore methods", function () {
 	var _ = klunk._;
@@ -547,6 +547,15 @@ describe ( "klunk underscore methods", function () {
 			_.delay (function () {
 				this.ok = true;
 			}, 20, this)
+		} );
+		it ( "accepts a sleep interval", function (done) {
+
+			var ok = false;
+			_.wait (10,11,function () {return ok}, done);
+			_.delay (function () {
+				ok = true;
+			}, 20, this)
+
 		} );
 	} );
 	describe ( "sprintf", function () {

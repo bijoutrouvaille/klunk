@@ -93,7 +93,7 @@ Mastering this section can well improve your testing speed, and organization.
 Each spec has its own context, separate from other specs.
 
 Topic and coda share context within their suite, exposing the same one to each spec, beforeEach, and
-afterEach through their respective this.topic. The topic of a parent suite can be accesses as this.topic.parent.
+afterEach through their respective this.topic. The topic of a parent suite can be accessed as this.topic.parent.
 
 beforeEach and afterEach methods execute each time within their spec's context, but their this.topic
 remains relative to their suite, that could be a very useful feature.
@@ -199,8 +199,8 @@ It will be accessible and executed using a similar to jasmine syntax:
 
     this.expects (10).toBeAMultipleOf(5)
 
-You can add matchers using the addMatchers method of: klunk, a suite, a spec.
-Context of topic, beforeEach, and it functions also contains this method.
+You can add matchers using the addMatchers method of: klunk, a suite or a spec.
+Contexts of _topic_, _beforeEach_, and _it_ functions also contains this method.
 You can also pass it as an option to klunk, describe, or it.
 
 ```javascript
@@ -225,8 +225,8 @@ it (function(){
 
 ```
 
-_TIP:_ set this.actual to some string describing what it is within your custom
-		matcher to see the reporter display it, instead of an obumbrated [object Object] or the like
+_TIP:_ set this.actual to a string literal, describing it is within your custom
+		matcher, to see the reporter display it instead of the obumbrated [object Object] or the like.
 
 #### 3.2 Built-in Matchers
 
@@ -237,10 +237,24 @@ The aim for these is to be self-explanatory
 -	toBeTruthy
 -	toBeDefined
 -	toBeEmpty
+-	toFail
 -	toHaveKey (string)
 -	toHaveKeys(string array)
 -	toEqual (object) using deep, loose comparison
 -	toStrictlyEqual (object) using deep, strict comparison
+
+### 4 The Klunk Object
+
+The global object object exposes a number of hackable methods and parameters.
+
+-	_klunk.matchers_ is an object containing the built in matchers.
+	You can add your own to it manually if you like.
+-	_klunk.addMatchers_ has been described above
+-	_klunk.\__ is a utility similar to underscore.js, more limited in some ways, more apt in others.
+-	_klunk.topic_ is an object for you to use as you like
+-	_klunk.options_ a manual access to all of klunk's global options
+-	_klunk.set()_ is a preferred way of setting global options. It is described in the global options section
+-	_klunk.run()_ Accepts either undefined, an options object to be passed to klunk.set(), or a callback function
 
 ## TODO
 
