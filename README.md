@@ -70,26 +70,23 @@ klunk.run ()
 
 ## API
 
-### Concepts
+### 1 Concepts
 
-Preprocessors and postprocessors
---------------------------------
+#### 1.1 Preprocessors and postprocessors
 
 beforeEach and afterEach execute in serial before and after each spec.
 topic and coda execute in serial once before and after each suite, respectively.
 You can have multiple definitions of the same type per suite, they will execute serially,
 in order that they were defined.
 
-Serial and parallel
--------------------
+#### 1.2 Serial and parallel
 
 The preprocessors always wait to finish before specs begin to execute. If the suite is set to run
 in serial mode, klunk will wait for each spec to finish before executing the next. Child suites always wait
 for the parent suite to finish before executing. The spec isn't finished until all its afterEach functions are
 finished, if provided. The suite isn't finished until all codas have executed in serial.
 
-Context sharing and isolation
------------------------------
+#### 1.3 Context sharing and isolation
 
 Mastering this section can well improve your testing speed, and organization.
 
@@ -103,18 +100,7 @@ remains relative to their suite, that could be a very useful feature.
 
 Each spec's context has only two reserved fields: topic and expects. The rest is up to you to use as you like.
 
-
-### Options
-
-Klunk has a set of global options, and a set of options for each suite, preprocessor, postprocessor, and spec.
-The ease and accessibility of these is one of the most important features in klunk.
-
-Some options propagate down from parent to child. For example setting a timeout value for a suite will
-determine the timeout for all nested topic, coda, beforeEach, and afterEach methods at any level, unless
-any one of them sets their own. An option is considered unset if it's value is null, and set if it
-corresponds to its basic type, such as boolean or number.
-
-#### Kontrol object
+#### 1.4 Kontrol object
 
 All definition functions, i.e. describe, it, beforeEach, afterEach, topic, and coda, return a function object
 that can be used to set options, or launch suites individually. Each definition function returns its own
@@ -128,10 +114,22 @@ Examples:
 
 Most options can be set in either of the two above styles.
 
+### 2 Options
+
+Klunk has a set of global options, and a set of options for each suite, preprocessor, postprocessor, and spec.
+The ease and accessibility of these is one of the most important features in klunk.
+
+Some options propagate down from parent to child. For example setting a timeout value for a suite will
+determine the timeout for all nested topic, coda, beforeEach, and afterEach methods at any level, unless
+any one of them sets their own. An option is considered unset if it's value is null, and set if it
+corresponds to its basic type, such as boolean or number.
+
+#### 2.1 Suite Options - Kontrol Objects
+
 Here's a reference to kontrol objects returned by each definition type. It will list options and parameters
 that they can accept as well as the chainable methods they expose.
 
-##### describe
+##### 2.1.1 describe
 
 Its kontrol objects can accept undefined, boolean true, or a callback function, each signaling the suite
 and its child suites to run immediately.
@@ -148,20 +146,20 @@ Options it can use:
 		for child suites to false after setting it to true on the parent will have no effect.
 -	__matchers__ this option will be covered in the matchers section
 
-##### it
+##### 2.1.2 it
 
 -	__timeout__ to override anything that may have propagated from the parent
 -	__matchers__ this option will be covered in the matchers section
 -	__callback__ which will trigger as soon as the spec is done receiving
 		the spec object as a parameter. This will happen before the results are reported
 
-##### topic, coda, beforeEach, afterEach
+##### 2.1.3 topic, coda, beforeEach, afterEach
 
 -	__timeout__ to override anything that may have propagated from the parent
 -	__callback__ which will trigger as soon as the spec is done receiving
 		the spec object as a parameter. This will happen before the results are reported
 
-#### Global Options
+#### 2.2 Global Options
 
 You can access global options directly with klunk.options, but a more recommended approach is to
 use klunk.set ({...}) as some options are nested and also that it maybe easier to store options
@@ -178,7 +176,7 @@ values to the corresponding options keys.
 	-	__color__ [default:true] applies only to the terminal reporter
 	-	__passed__ [default:false] causes the reporter to show passed tests
 
-### Matchers
+### 3 Matchers
 
 Matchers work very similarly to jasmine. A spec, beforeEach, and afterEach
 share context, so you can technically have expectations in any of the three clauses.
@@ -187,6 +185,8 @@ Example of a basic spec, and a negation spec:
     this.expects (true).toBe(true)
     this.expects (true).not.toBe(false)
 
+
+#### 3.1 Custom Matchers
 
 Klunk comes with a kollection of handy matchers, which are listed below, but should you
 desire to add your own (and you should) it is exceedingly easy.
@@ -228,7 +228,9 @@ it (function(){
 _TIP:_ set this.actual to some string describing what it is within your custom
 		matcher to see the reporter display it, instead of an obumbrated [object Object] or the like
 
-#### Built-in Matchers
+#### 3.2 Built-in Matchers
+
+The aim for these is to be self-explanatory
 
 -	toBe (object) strict equal ===
 -	toBeFalsy
