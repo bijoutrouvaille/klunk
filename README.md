@@ -250,7 +250,7 @@ The global object object exposes a number of hackable methods and parameters.
 -	_klunk.matchers_ is an object containing the built in matchers.
 	You can add your own to it manually if you like.
 -	_klunk.addMatchers_ has been described above
--	_klunk.\__ is a utility similar to underscore.js, more limited in some ways, more apt in others.
+-	_klunk.__ is a utility similar to underscore.js, more limited in some ways, more apt in others.
 -	_klunk.topic_ is an object for you to use as you like
 -	_klunk.options_ a manual access to all of klunk's global options
 -	_klunk.set()_ is a preferred way of setting global options. It is described in the global options section
