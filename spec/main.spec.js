@@ -37,10 +37,14 @@ describe ( "test suite", function () {
 
 	describe ( "beforeEach", function () {
 		var count = 0;
+		topic ( function () {
+			this.level1 = true;
+		} );
 		beforeEach ( function () {
 			this.dinoflagellate = "noctiluca";
 			this.count = ++count;
 			this.count2 = this.count2 ? this.count2 + 1 : 1;
+			this.level1 = this.topic.level1;
 		} );
 		it ( "passes the context", function () {
 			this.expects ( this.dinoflagellate ).toBe ( "noctiluca" );
@@ -57,6 +61,9 @@ describe ( "test suite", function () {
 			} );
 			it ( "runs before the child beforeEach", function () {
 				this.expects ( this.dinoflagellate ).toBe ( "NOCTILUCA" );
+			} );
+			it ( "maintains the topic relative to its suite", function () {
+				this.expects ( this.level1 ).toBe (true);
 			} );
 		} );
 	} );
@@ -250,6 +257,46 @@ describe ( "addMatchers method", function () {
 		} )({matchers:{toBeAttachedBySpecOption:function(){return true}}});
 	} ) ({matchers:{toBeAttachedBySuiteOption:function(){return true}}});
 } );
+describe ( "Built in matcher", function () {
+	describe ( "toBeEqual", function () {
+		it ( "uses _.isEqual without the strict option", function () {
+			this.expects ( {a:true,b:{c:'1'}} ).toEqual({a:1,b:{c:1}});
+		} );
+	} );
+	describe ( "toBeStrictlyEqual", function () {
+		it ( "uses _.isEqual with the strict option", function () {
+			this.expects ( {a:1,b:{c:1}} ).toStrictlyEqual({a:1,b:{c:1}});
+		} );
+	} );
+	describe ( "toHaveKey", function () {
+		it ( "uses _.has", function () {
+			this.expects ( {a : 1, b : 2} ).toHaveKey ('b');
+		} );
+	} );
+	describe ( "toHaveKeys", function () {
+		it ( "returns true if keys array passed intersects the actual keys array", function () {
+			this.expects ( {a:1,b:2,c:{d:{e:4}}} ).toHaveKeys ('a b c'.split(' '));
+		} );
+	} );
+	describe ( "toBeEmpty", function () {
+		it ( "passes if passed object that is empty", function () {
+			this.expects ( {} ).toBeEmpty ();
+		} );
+		it ( "passes if passed array that is empty", function () {
+			this.expects ( [] ).toBeEmpty ();
+		} );
+		it ( "passes if passed arguments that is empty", function () {
+			this.expects ( arguments ).toBeEmpty ();
+		} );
+		it ( "passes if passed a falsy value", function () {
+			this.expects ( null ).toBeEmpty ();
+		} );
+		it ( "passes if passed an empty string", function () {
+			this.expects ( '' ).toBeEmpty ();
+		} );
+
+	} );
+} );
 
 klunk.topic.silent = false;
 describe ( "a silent suite fixture", function () {
@@ -420,9 +467,9 @@ xdescribe ( "TerminalReporter", function () {
 		coda ( "sharpen your tongue", function ( done ) {
 		} );
 	} );
-} ) ({timeout:1});
+} ) ({timeout:1})();
 
-describe ( "klunk underscore", function () {
+describe ( "klunk underscore methods", function () {
 	var _ = klunk._;
 	describe ( "extend", function () {
 		it ( "copies onto the first object", function () {
@@ -431,6 +478,11 @@ describe ( "klunk underscore", function () {
 			this.expects ( obj.a ).toBe ( 1 );
 			this.expects ( obj.b ).toBe ( 2 );
 			this.expects ( obj.c ).toBe ( 3 );
+		} );
+	} );
+	describe ( "has", function () {
+		it ( "returns true if a key exists", function () {
+			this.expects ( _.has ( {a : 1, b : 2}, 'b' ) ).toBe ( true );
 		} );
 	} );
 	describe ( "first", function () {

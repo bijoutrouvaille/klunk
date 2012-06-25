@@ -56,17 +56,12 @@
 				cb && cb ();
 			} );
 		},
-		runSuite : function ( suite, parentTopic, befores, afters, done ) {
+		runSuite : function ( suite, parentTopic, done ) {
 
 			done = _.last ( arguments, 'function' );
 			if (done === parentTopic) {
-				befores = [];
-				afters = [];
 				parentTopic = {};
 			}
-
-			befores = [].concat ( befores, suite.befores );
-			afters = [].concat ( afters, suite.afters );
 
 			var topic = {
 				parent : parentTopic,
@@ -77,7 +72,7 @@
 			_.serial([
 
 				_.serial.bind ( _, suite.topics, topic ),
-				klunk.runSpecs.bind ( klunk, suite, topic, befores, afters ),
+				klunk.runSpecs.bind ( klunk, suite, topic ),
 				_.serial.bind ( _, suite.codas, topic )
 
 			],
@@ -86,7 +81,7 @@
 
 					if (error) return done(error);
 
-					klunk.runChildren ( suite, topic, befores, afters, function () {
+					klunk.runChildren ( suite, topic, function () {
 
 						_.each ( suite.suites, function ( child ) {
 
@@ -109,19 +104,50 @@
 			);
 
 		},
-		runChildren : function ( suite, parentTopic, befores, afters, done ) {
+		runChildren : function ( suite, parentTopic, done ) {
 
 			var ops = [];
 			_.each (suite.suites, function ( childSuite ) {
 				childSuite.options.timeout = childSuite.options.timeout || suite.options.timeout;
 				childSuite.options.solo ||
-					ops.push ( klunk.runSuite.bind (klunk, childSuite, parentTopic, befores, afters ) )
+					ops.push ( klunk.runSuite.bind (klunk, childSuite, parentTopic ) )
 			}) ;
 
 			var method = _.firstBoolean ( suite.options.serial, klunk.options.serial) ? "serial" : "parallel";
 			_[method] (ops, {method:'runChildren'}, done )
 		},
-		runSpecs: function (suite, topic, befores, afters, done) {
+		queDescriptors: function ( suite, name, topic ) {
+
+			var funs = suite.parent
+				? klunk.queDescriptors ( suite.parent, name, topic.parent )
+				: [];
+
+			_.each (suite[name], function ( fn ) {
+
+				if ( fn.length ) {
+					funs.push ( function ( done ) {
+						var child = this.topic;
+						var cx = this;
+						this.topic = topic;
+						fn.call ( this, function () {
+							cx.topic = child;
+							done.apply ( this, arguments )
+						} );
+					} )
+				} else {
+					funs.push ( function () {
+						var child = this.topic;
+						this.topic = topic;
+						fn.call ( this );
+						this.topic = child;
+					} )
+				}
+
+			}, this);
+
+			return funs;
+		},
+		runSpecs: function (suite, topic, done) {
 
 			var cx, ops = [];
 
@@ -134,6 +160,10 @@
 						topic : topic,
 						addMatchers: klunk.addMatchers.bind (spec.matchers)
 					};
+
+					var befores = klunk.queDescriptors(suite, 'befores', topic);
+					var afters = klunk.queDescriptors(suite, 'afters', topic);
+
 
 					var timeout = spec.fn.timeout || suite.options.timeout || klunk.options.timeout;
 					if (timeout) cx.timeout = timeout;
@@ -395,7 +425,9 @@
 					_.intersect ( keys, expected ).length==expected.length
 			},
 			toEqual: function (expected) { return _.isEqual(this.actual, expected) },
-			toStrictlyEqual: function (expected) { return _.isEqual(this.actual, expected, true) }
+			toStrictlyEqual: function (expected) { return _.isEqual(this.actual, expected, true) },
+			toBeEmpty: function () {return _.isEmpty(this.actual) },
+			toFail: function () {this.actual = this.actual||'spec'; return false}
 		}
 	};
 
@@ -515,7 +547,13 @@
 
 		},
 		has: function (obj, key) {
-			Object.prototype.hasOwnProperty.call(obj, key)
+			return Object.prototype.hasOwnProperty.call(obj, key)
+		},
+		isEmpty: function ( obj ) {
+
+			if (obj==null || !obj.length) return true;
+			for (var i in obj) if ( _.has(obj,i)) return false;
+			return true;
 		},
 		isEqual: function (a,b, strict) {
 			if (!_.isObject(a)) return strict ? a===b : a==b;
@@ -784,6 +822,9 @@
 	exports.set = function ( options ) {
 		klunk.set ( options );
 		return exports;
+	};
+	exports.addMatchers = function (matchers) {
+		_.extend(klunk.matchers, matchers);
 	};
 
 	exports.topic = {};

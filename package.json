@@ -1,8 +1,21 @@
 {
-    "name": "klunk"
-  , "version": "0.0.1"
-  , "private": false
-  , "dependencies": {
+	"name": "klunk"
+	,"description": "A hackable testing framework for JavaScript"
+	,"keywords": "klunk klunkjs klunk.js unit-testing bdd"
+	,"bugs":"https://github.com/bijoutrouvaille/klunk/issues"
+	,"homepage":"https://github.com/bijoutrouvaille/klunk"
+	,"version": "0.0.1"
+	,"author" : "Bijou Trouvaille"
+	,"main":"klunk.js"
+	,"scripts": {
+
+	}
+	,"repository": {
+		"type":"git",
+		"url":"https://github.com/bijoutrouvaille/klunk.git"
+	}
+
+	,"dependencies": {
   }
 }
 

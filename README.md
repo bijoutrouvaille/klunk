@@ -11,12 +11,12 @@ importantly giving you a choice to execute each suite's specs either in parallel
 - Global or individual propagating options per suite
 - Miniature underscore utility
 - A simple, yet powerful syntax
-- Works as a NodeJs module
+- Works as a NodeJs module, and is planned soon to work in a browser
 
 ### An Example
 
 ```javascript
-describe ( "Your suite, just like in jasmine or mocha", function() {
+describe ( "Your suite", function() {
 
 	topic (function(){
 		this.greeting = "welcome!";
@@ -28,7 +28,7 @@ describe ( "Your suite, just like in jasmine or mocha", function() {
 	it ( "comes with a familiar syntax" , function () {
 		this.expects ( "the learning curve" ).not.toBe ( 'difficult' )
 	} );
-	it ( "of course can be asynchronous" , function (done) {
+	it ( "allows any definition to be asynchronous" , function (done) {
 		klunk._.delay (done, 1000)
 	})
 
@@ -70,6 +70,40 @@ klunk.run ()
 
 ## API
 
+### Concepts
+
+Preprocessors and postprocessors
+--------------------------------
+
+beforeEach and afterEach execute in serial before and after each spec.
+topic and coda execute in serial once before and after each suite, respectively.
+You can have multiple definitions of the same type per suite, they will execute serially,
+in order that they were defined.
+
+Serial and parallel
+-------------------
+
+The preprocessors always wait to finish before specs begin to execute. If the suite is set to run
+in serial mode, klunk will wait for each spec to finish before executing the next. Child suites always wait
+for the parent suite to finish before executing. The spec isn't finished until all its afterEach functions are
+finished, if provided. The suite isn't finished until all codas have executed in serial.
+
+Context sharing and isolation
+-----------------------------
+
+Mastering this section can well improve your testing speed, and organization.
+
+Each spec has its own context, separate from other specs.
+
+Topic and coda share context within their suite, exposing the same one to each spec, beforeEach, and
+afterEach through their respective this.topic. The topic of a parent suite can be accesses as this.topic.parent.
+
+beforeEach and afterEach methods execute each time within their spec's context, but their this.topic
+remains relative to their suite, that could be a very useful feature.
+
+Each spec's context has only two reserved fields: topic and expects. The rest is up to you to use as you like.
+
+
 ### Options
 
 Klunk has a set of global options, and a set of options for each suite, preprocessor, postprocessor, and spec.
@@ -90,13 +124,14 @@ Examples:
 
     it ("expects an asynchronous result", function(done) {...} ) ({timeout:1000,callback:testDone});
 	topic ("a remote connection", function(done){...}).timeout(1000).callback(topicDone);
+	describe.run (callback);
 
 Most options can be set in either of the two above styles.
 
 Here's a reference to kontrol objects returned by each definition type. It will list options and parameters
 that they can accept as well as the chainable methods they expose.
 
-###### describe
+##### describe
 
 Its kontrol objects can accept undefined, boolean true, or a callback function, each signaling the suite
 and its child suites to run immediately.
@@ -113,14 +148,14 @@ Options it can use:
 		for child suites to false after setting it to true on the parent will have no effect.
 -	__matchers__ this option will be covered in the matchers section
 
-###### it
+##### it
 
 -	__timeout__ to override anything that may have propagated from the parent
 -	__matchers__ this option will be covered in the matchers section
 -	__callback__ which will trigger as soon as the spec is done receiving
 		the spec object as a parameter. This will happen before the results are reported
 
-###### topic, coda, beforeEach, afterEach
+##### topic, coda, beforeEach, afterEach
 
 -	__timeout__ to override anything that may have propagated from the parent
 -	__callback__ which will trigger as soon as the spec is done receiving
@@ -151,7 +186,6 @@ Example of a basic spec, and a negation spec:
 
     this.expects (true).toBe(true)
     this.expects (true).not.toBe(false)
-
 
 
 Klunk comes with a kollection of handy matchers, which are listed below, but should you
@@ -191,12 +225,16 @@ it (function(){
 
 ```
 
+_TIP:_ set this.actual to some string describing what it is within your custom
+		matcher to see the reporter display it, instead of an obumbrated [object Object] or the like
+
 #### Built-in Matchers
 
 -	toBe (object) strict equal ===
 -	toBeFalsy
 -	toBeTruthy
 -	toBeDefined
+-	toBeEmpty
 -	toHaveKey (string)
 -	toHaveKeys(string array)
 -	toEqual (object) using deep, loose comparison
@@ -204,7 +242,9 @@ it (function(){
 
 ## TODO
 
+-	Create a browser reporter, to allow klunk to run in browser
 -	Document the wonderful klunk._ methods
+-	Document the suite object, passed to the callback functions
 -	Create a jasmine compatibility mode, since we are so close
 
 ## What People May Say About Klunk
