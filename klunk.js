@@ -51,16 +51,23 @@
 		* #run
 		* */
 		run : function ( cb ) { /* run everything */
-			klunk.runSuite ( klunk.top, function() {
-				klunk.report ( klunk.top );
-				cb && cb ();
+			klunk.runSuite ( klunk.top, function () {
+				cb && cb (klunk.top);
+				klunk.options.callback && klunk.options.callback ( klunk.top )
 			} );
 		},
 		runSuite : function ( suite, parentTopic, done ) {
 
+			if (suite===klunk.top) {
+				if (suite.isRunning) return false;
+				suite.isRunning = true;
+			}
+
 			done = _.last ( arguments, 'function' );
+			var reportWhenDone = false;
 			if (done === parentTopic) {
-				parentTopic = {};
+				parentTopic = undefined;
+				reportWhenDone = true;
 			}
 
 			var topic = {
@@ -79,7 +86,24 @@
 				{method : 'runSuite'},
 				function (error) {
 
-					if (error) return done(error);
+
+					var komplete =function () {
+						if ( suite === klunk.top ) {
+							suite.isRunning = false;
+							klunk.options.callback && klunk.options.callback (suite)
+						}
+						if ( reportWhenDone ) {
+							klunk.report ( suite )
+						}
+						done && done ( error );
+						suite.options.callback && suite.options.callback ( suite );
+
+					};
+
+					if ( error ) {
+						komplete ();
+						return ;
+					}
 
 					klunk.runChildren ( suite, topic, function () {
 
@@ -97,12 +121,12 @@
 							result.specsFailed 	+= childResult.specsFailed;
 							result.totalSpecs 	+= childResult.totalSpecs;
 						} );
-						done ();
-						suite.options.callback && suite.options.callback ( suite )
+
+						komplete()
 					});
 				}
 			);
-
+			return true
 		},
 		runChildren : function ( suite, parentTopic, done ) {
 
@@ -123,9 +147,10 @@
 				: [];
 
 			_.each (suite[name], function ( fn ) {
+				var desc;
 
 				if ( fn.length ) {
-					var desc = function ( done ) {
+					desc = function ( done ) {
 						var child = this.topic;
 						var cx = this;
 						this.topic = topic;
@@ -134,18 +159,24 @@
 							done.apply ( this, arguments );
 						} );
 					};
-					desc.timedOut = function (val) {fn.timedOut = val};
-					desc.triggered = function (val) {fn.triggered = val};
 
-					funs.push ( desc )
 				} else {
-					funs.push ( function () {
+					desc = function () {
 						var child = this.topic;
 						this.topic = topic;
 						fn.call ( this );
 						this.topic = child;
-					} )
+					};
 				}
+				desc.timedOut = function ( val ) {
+					fn.timedOut = val
+				};
+				desc.triggered = function ( val ) {
+					fn.triggered = val
+				};
+
+				funs.push ( desc )
+
 
 			}, this);
 
@@ -189,7 +220,10 @@
 				suite.result.totalSpecs = suite.result.totalSpecs || suite.specs.length;
 
 				_.each ( suite.specs, function ( spec ) {
-					if (!spec.fn) return;
+					if ( !spec.fn ) {
+						suite.result.totalSpecs--;
+						return
+					}
 					var result = spec.result;
 
 					result.timedOut = spec.fn.timedOut;
@@ -233,17 +267,35 @@
 			define ();
 			klunk.suite = parent;
 
-			if (klunk.options.autorun && parent===klunk.top) klunk.run ();
+			if ( klunk.options.autorun ) {
+				if ( parent === klunk.top ) {
+
+					if ( parent.isRunning ) {
+						klunk.runSuite ( suite )
+					} else {
+						_.delay ( function () {
+							if ( !parent.isRunning ) {
+								klunk.runSuite ( parent );
+							}
+						} );
+					}
+				}
+			}
+
 
 			var komplete = function () {
 				klunk.report ( suite );
 			};
 
-			var runSolo = function (callback) {
+			var runSolo = function ( callback ) {
 
-				if (callback) suite.options.callback = callback;
+				if ( callback ) {
+					suite.options.callback = callback;
+				}
 
-				if (klunk.options.nosolo) return;
+				if ( klunk.options.nosolo || klunk.options.autorun) {
+					return;
+				}
 				suite.options.solo = true;
 				klunk.runSuite ( suite, komplete );
 			};
@@ -252,26 +304,34 @@
 
 				var isFn = typeof options == 'function';
 
-				if ( isFn || options === undefined || options===true) {
-					runSolo (isFn && options);
-					return kontrol ;
+				if ( isFn || options === undefined || options === true ) {
+					runSolo ( isFn && options );
+					return kontrol;
 				}
 
-				if (options.matchers) kontrol.addMatchers(options.matchers);
-				_.each (options, function ( value, name ) {
-					kontrol[name] && kontrol[name] (value)
-				});
+				if ( options.matchers ) {
+					kontrol.addMatchers ( options.matchers );
+				}
+				_.each ( options, function ( value, name ) {
+					kontrol[name] && kontrol[name] ( value )
+				} );
 
 				return kontrol;
 			};
-			_.each (suite.options, function ( v, name ) {
-				kontrol[name] = function (value) {suite.options[name] = value;return kontrol}
-			});
+			_.each ( suite.options, function ( v, name ) {
+				kontrol[name] = function ( value ) {
+					suite.options[name] = value;
+					return kontrol
+				}
+			} );
 			_.extend ( kontrol, {
 				run : runSolo,
-				suite: suite,
-				addMatchers: function (obj) {_.extend(suite.matchers, obj);return kontrol}
-			});
+				suite : suite,
+				addMatchers : function ( obj ) {
+					_.extend ( suite.matchers, obj );
+					return kontrol
+				}
+			} );
 			kontrol.matchers = kontrol.addMatchers;
 
 			return kontrol
@@ -582,6 +642,17 @@
 			});
 			return res;
 		},
+		unravel: function (obj, path) {
+			path = path.split('.');
+			var res = obj;
+			for (var i in path) {
+				res = res[path[i]];
+				if ( !_.isObject (res) ) {
+					return i == path.length - 1 ? res : undefined;
+				}
+			}
+			return res;
+		},
 		delay: function ( fn, miliseconds, context, args ) {
 
 			miliseconds = miliseconds || 0;
@@ -673,9 +744,9 @@
 			}, miliseconds);
 			fn (function() {
 				if (!place++) {
-					done.apply ( root, [false].concat ( _.toArray ( arguments ) ) );
 					// the interval is cleared because otherwise node waits for it to finish before exiting
 					clearTimeout(t);
+					done.apply ( root, [false].concat ( _.toArray ( arguments ) ) );
 				}
 			})
 		},
@@ -842,7 +913,6 @@
 		}
 		klunk.run (function(suite, report){
 			cb && cb ( suite, report );
-			klunk.options.callback && klunk.options.callback ( suite, report )
 		});
 	};
 	exports.options = klunk.options;

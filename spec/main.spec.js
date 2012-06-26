@@ -7,6 +7,52 @@
 
 var klunk = typeof window != 'undefined' ? window.klunk : require ( '../klunk' );
 var _ = klunk._;
+klunk.set({autorun:true, callback : suiteDone});
+
+var suiteDone = function (top) {
+
+	var rep = function (suite) {
+
+		if (suite.text && ~suite.text.indexOf('fixture') || suite.options.silent) return;
+
+		_.each ('before,after,coda,topic'.split(','), function ( name ) {
+			_.each (suite[name+'s'], function ( fn, i ) {
+				var n = name;
+				if ( fn.timedOut ) {
+					console.log ( 'function timed out', fn.text, name );
+				}else if (name=='before') {
+					var x=9;
+				}
+				if ( !fn.triggered ) {
+					console.log ( 'function not triggered', fn.text, name );
+				}
+			});
+		});
+		_.each (suite.specs, function ( spec ) {
+			if (!spec.fn){
+				return
+			}
+			if ( spec.fn.timedOut ) {
+				console.log ( 'function timed out',spec.text );
+			}
+
+		});
+		_.each (suite.suites, rep, this)
+	};
+	rep (top);
+};
+klunk.addMatchers ({
+	toHaveTriggered : function () {
+		var r = _.isFunction(this.actual) ? this.actual : this.actual.fn;
+		this.actual = '"' + this.actual.text + '"';
+		return r.triggered
+	},
+	toHaveTimedOut: function () {
+		return this.actual.timedOut instanceof _.TimeoutError
+	}
+});
+
+
 describe ( "klunk's it", function () {
 	it ( "can be empty" );
 	it ( "passes", function () {
@@ -14,7 +60,7 @@ describe ( "klunk's it", function () {
 		this.test = true;
 	} );
 	it ( "has own context", function () {
-		this.expects ( true ).toBe ( true )
+		this.expects ( true ).toBe ( true );
 		this.expects ( this.test ).toBe ( undefined );
 	} );
 } );
@@ -40,7 +86,7 @@ describe ( "test suite", function () {
 		topic ( function () {
 			this.level1 = true;
 		} );
-		beforeEach ( function () {
+		beforeEach ( "1", function () {
 			this.dinoflagellate = "noctiluca";
 			this.count = ++count;
 			this.count2 = this.count2 ? this.count2 + 1 : 1;
@@ -56,8 +102,8 @@ describe ( "test suite", function () {
 			this.expects ( this.count2 ).toBe ( 1 )
 		} );
 		describe ( "nested", function () {
-			beforeEach ( function () {
-				this.dinoflagellate = this.dinoflagellate.toUpperCase ()
+			beforeEach ( "2", function () {
+				this.dinoflagellate = this.dinoflagellate.toUpperCase ();
 			} );
 			it ( "runs before the child beforeEach", function () {
 				this.expects ( this.dinoflagellate ).toBe ( "NOCTILUCA" );
@@ -69,7 +115,46 @@ describe ( "test suite", function () {
 	} );
 } );
 
-describe ( "klunk topic", function () {
+describe ( "processor function fixture", function () {
+	beforeEach ( function ( done ) {
+		done();
+	} );
+	afterEach ( function ( done ) {
+		done()
+	} );
+	beforeEach ( function () {
+	} );
+	afterEach ( function () {
+	} );
+	topic ( function ( done ) {
+		done();
+	} );
+	coda ( function ( done ) {
+		done()
+	} );
+	topic ( function () {
+	} );
+	coda ( function () {
+	} );
+	it ( "triggers all processors", function (  ) {
+	} );
+} ) ({silent:true, callback : function ( suite ) {
+	describe ( "triggered flag", function () {
+		it ( "is on for every processor function that is ran", function () {
+			_.each ('befores afters topics codas'.split(' '), function ( name ) {
+
+				_.each (suite[name], function ( fn ) {
+
+					this.expects ( fn ).toHaveTriggered ();
+
+				}, this)
+
+			}, this)
+		} );
+	} );
+}});
+
+describe ( "topic", function () {
 	var plants = {"feverfew" : 'febrifuge'};
 	topic ( function () {
 		this.overrun = !!this.plants;
@@ -369,7 +454,7 @@ _.wait ( function () { return klunk.topic.kallback }, function () {
 		it ( "fires with the suite as a parameter", function () {
 			this.expects ( klunk.topic.kallback ).toHaveKeys ( "befores afters suites options".split ( " " ) );
 		} );
-	} ) ();
+	} );
 
 } );
 
@@ -409,15 +494,11 @@ describe ( "timeout fixture", function () {
 
 	describe ( "Asynchronous operation timeout", function () {
 		topic ( function () {
-			this.addMatchers ({
-				toHaveTriggered : function () {
-					var r = this.actual.result;
-					this.actual = '"' + this.actual.text + '"';
-					return r.triggered
-				}
-			})
 		} );
 		describe ( "on beforeEach", function () {
+			it ( "marks the function as timedOut", function () {
+				this.expects ( suite.suites[0].befores[0] ).toHaveTimedOut();
+			} );
 			it ( "prevents the spec upon which it failed from running", function () {
 				_.each ( suite.suites[0].specs, function ( spec ) {
 					this.expects ( spec ).not.toHaveTriggered ();
@@ -425,6 +506,9 @@ describe ( "timeout fixture", function () {
 			} ) ;
 		} );
 		describe ( "on afterEach in serial mode", function () {
+			it ( "marks the function as timedOut", function () {
+				this.expects ( suite.suites[1].afters[0] ).toHaveTimedOut();
+			} );
 			it ( "prevents the specs in nested suite from running", function (  ) {
 				_.each ( suite.suites[1].suites[0].specs,function ( spec ) {
 					this.expects ( spec ).not.toHaveTriggered();
@@ -432,6 +516,9 @@ describe ( "timeout fixture", function () {
 			} ) ;
 		} );
 		describe ( "on topic", function () {
+			it ( "marks the function as timedOut", function () {
+				this.expects ( suite.suites[2].topics[0] ).toHaveTimedOut();
+			} );
 			it ( "prevents the specs in nested suite from running", function (  ) {
 				_.each ( suite.suites[2].suites[0].specs,function ( spec ) {
 					this.expects ( spec ).not.toHaveTriggered();
@@ -467,7 +554,7 @@ xdescribe ( "TerminalReporter", function () {
 		coda ( "sharpen your tongue", function ( done ) {
 		} );
 	} );
-} ) ({timeout:1});
+} ) ({timeout:1}) (true);
 
 describe ( "klunk underscore methods", function () {
 	var _ = klunk._;
@@ -576,6 +663,44 @@ describe ( "klunk underscore methods", function () {
 				.toBe ('a lazy cat flew over a quick horse');
 		} );
 	} );
+	describe ( "unravel", function () {
+		beforeEach ( function () {
+			this.obj = {a:{b:{c:{d:3}}}};
+		} );
+		it ( "returns a value at the objects path", function () {
+			this.expects ( _.unravel (this.obj,'a.b.c.d') ).toBe(3);
+		} );
+		it ( "returns undefined if the chain is too short", function () {
+			this.expects ( _.unravel ( this.obj, 'a.b.c.d.e' ) ).not.toBeDefined ();
+		} );
+		it ( "returns undefined if a chain link is not an object", function () {
+			this.obj.a.b.c = 5;
+			this.expects ( _.unravel ( this.obj, 'a.b.c.d' ) ).not.toBeDefined ();
+		} );
+	} );
+	describe ( "set", function () {
+		it ( "sets a field", function () {
+			var x = {};
+			_.set(x,'foo','baz');
+			this.expects ( x.foo ).toBe ('baz');
+		} );
+		it ( "calls a setter", function () {
+			var z;
+			var x = {foo:function (v) {
+				z = v;
+			}};
+			_.set(x,'foo','baz');
+			this.expects ( z ).toBe ('baz');
+		} );
+	} );
+	describe ( "get", function () {
+		it ( "gets a field", function () {
+			var x = {foo:'bar'};
+			this.expects ( _.get(x,'foo') ).toBe ('bar');
+		} );
+		it ( "calls a getter", function () {
+			var x = {foo:function(){return 'bar'}};
+			this.expects ( _.get ( x, 'foo' ) ).toBe('bar');
+		} );
+	} );
 } );
-
-klunk.run();

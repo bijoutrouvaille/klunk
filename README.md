@@ -74,16 +74,17 @@ klunk.run ()
 
 #### 1.1 Preprocessors and postprocessors
 
-beforeEach and afterEach execute in serial before and after each spec.
+beforeEach and afterEach execute serially before and after each spec.
 topic and coda execute in serial once before and after each suite, respectively.
 You can have multiple definitions of the same type per suite, they will execute serially,
 in order that they were defined.
 
 #### 1.2 Serial and parallel
 
-The preprocessors always wait to finish before specs begin to execute. If the suite is set to run
-in serial mode, klunk will wait for each spec to finish before executing the next. Child suites always wait
-for the parent suite to finish before executing. The spec isn't finished until all its afterEach functions are
+The preprocessors always wait to finish before specs begin to execute. The default mode is parallel. If the suite
+is set to run in serial mode, klunk will wait for each spec to finish before executing the next.
+Child suites always wait for the parent suite to finish before executing.
+The spec isn't finished until all its afterEach functions are
 finished, if provided. The suite isn't finished until all codas have executed in serial.
 
 #### 1.3 Context sharing and isolation
@@ -168,7 +169,7 @@ values to the corresponding options keys.
 
 ##### A list of global options:
 -	__autorun__ [default: null] true will cause klunk to run suites as they are read, without needing to call klunk.run().
--	__serial__ [default: null] true will cause specs and suites to run one at a time.
+-	__serial__ [default: false] true will cause specs and suites to run one at a time.
 -	__timeout__ [default: 5000] will cause asynchronous functions to fail after a specified time.
 -	__silent__ [default: null] will prevent klunk from reporting results.
 -	__callback__ [default: null] can be a function to trigger upon successful completion of suites ran with klunk.run()
