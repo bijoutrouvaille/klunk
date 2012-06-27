@@ -14,6 +14,7 @@
 	* # report reportSuite, reportSpec, etc...
 	* # underscore utility
 	* # expect method
+	* # matchers
 	* # exports - thank you klunk
 	* */
 
@@ -74,7 +75,10 @@
 				parent : parentTopic,
 				addMatchers: klunk.addMatchers.bind ( suite.matchers )
 			};
-			if (klunk.options.timeout) topic.timeout = suite.options.timeout || klunk.options.timeout;
+			var timeout = suite.options.timeout || klunk.options.timeout;
+			if (timeout) {
+				topic.timeout = timeout;
+			}
 
 			_.serial([
 
@@ -83,13 +87,13 @@
 				_.serial.bind ( _, suite.codas, topic )
 
 			],
-				{method : 'runSuite'},
-				function (error) {
+				{},
+				function whenSuiteIsDone (error) {
 
 
 					var komplete =function () {
 						if ( suite === klunk.top ) {
-							suite.isRunning = false;
+							delete suite.isRunning;
 							klunk.options.callback && klunk.options.callback (suite)
 						}
 						if ( reportWhenDone ) {
@@ -128,6 +132,9 @@
 			);
 			return true
 		},
+		isSerial : function ( suite ) {
+			return _.firstBoolean ( suite.options.serial, klunk.options.serial );
+		},
 		runChildren : function ( suite, parentTopic, done ) {
 
 			var ops = [];
@@ -137,16 +144,17 @@
 					ops.push ( klunk.runSuite.bind (klunk, childSuite, parentTopic ) )
 			}) ;
 
-			var method = _.firstBoolean ( suite.options.serial, klunk.options.serial) ? "serial" : "parallel";
-			_[method] (ops, {method:'runChildren'}, done )
+			var method = klunk.isSerial ( suite ) ? "serial" : "parallel";
+			_[method] (ops, {}, done )
 		},
-		cueDescriptors: function ( suite, name, topic ) {
+		cueDescriptors: function ( suite, name, topic, spec, level ) {
 
-			var funs = suite.parent
-				? klunk.cueDescriptors ( suite.parent, name, topic.parent )
+			level = level || 0;
+			var functions = suite.parent
+				? klunk.cueDescriptors ( suite.parent, name, topic.parent, spec, level+1 )
 				: [];
 
-			_.each (suite[name], function ( fn ) {
+			_.each (suite[name], function ( fn, i ) {
 				var desc;
 
 				if ( fn.length ) {
@@ -155,10 +163,13 @@
 						var cx = this;
 						this.topic = topic;
 						fn.call ( this, function () {
+							// if this function is never called due to a timeout, this context won't used anyway,
+							// so there isn't a point trying to restore it anywhere but here
 							cx.topic = child;
 							done.apply ( this, arguments );
 						} );
 					};
+					desc.timeout = fn.timeout;
 
 				} else {
 					desc = function () {
@@ -168,19 +179,25 @@
 						this.topic = child;
 					};
 				}
+				var result =  {
+					timedOut: false,
+					triggered: false,
+					text: fn.text || i + '-' + level
+				};
+				spec.result[name].push(result);
 				desc.timedOut = function ( val ) {
-					fn.timedOut = val
+					result.timedOut = val;
 				};
 				desc.triggered = function ( val ) {
-					fn.triggered = val
+					result.triggered = val
 				};
 
-				funs.push ( desc )
+				functions.push ( desc )
 
 
 			}, this);
 
-			return funs;
+			return functions;
 		},
 		runSpecs: function (suite, topic, done) {
 
@@ -193,29 +210,34 @@
 					cx = {
 						expects : klunk.expects.bind ( { spec:spec } ),
 						topic : topic,
-						addMatchers: klunk.addMatchers.bind (spec.matchers)
+						addMatchers: klunk.addMatchers.bind ( spec.matchers )
 					};
 
-					var befores = klunk.cueDescriptors(suite, 'befores', topic);
-					var afters = klunk.cueDescriptors(suite, 'afters', topic);
+					var befores = klunk.cueDescriptors ( suite, 'befores', topic, spec );
+					var afters = klunk.cueDescriptors ( suite, 'afters', topic, spec );
 
+					cx.timeout = suite.options.timeout || klunk.options.timeout;
 
-					var timeout = spec.fn.timeout || suite.options.timeout || klunk.options.timeout;
-					if (timeout) cx.timeout = timeout;
+					var fn = spec.fn.bind (cx);
+					fn.timeout = spec.fn.timeout || cx.timeout;
+					fn.timedOut = function (val) {spec.result.timedOut = val};
+					fn.triggered = function (val) {spec.result.triggered = val};
 
 					ops.push (
 						_.serial.bind ( _, [
+
 							_.serial.bind (_, befores, cx),
-							spec.fn,
+							fn,
 							_.serial.bind (_, afters, cx)
-						], cx )
+
+						], {} )
 					);
 				}
 			});
 
-			var method = _.firstBoolean ( suite.options.serial, klunk.options.serial) ? "serial" : "parallel";
+			var method = klunk.isSerial ( suite ) ? "serial" : "parallel";
 
-			_[ method ] ( ops, {method : 'runSpecs'}, function ( error ) {
+			_[ method ] ( ops, {}, function ( error ) {
 
 				suite.result.totalSpecs = suite.result.totalSpecs || suite.specs.length;
 
@@ -226,12 +248,12 @@
 					}
 					var result = spec.result;
 
-					result.timedOut = spec.fn.timedOut;
-					result.triggered = spec.fn.triggered;
-
-					result.failed = !result.triggered || result.timedOut || _.any ( result.expectations, function ( e ) {
-						return e.failed
-					});
+					result.failed = !result.triggered
+						|| result.timedOut
+						|| _.any ( result.expectations, 'failed')
+						|| _.any ( result.befores, 'timedOut')
+						|| _.any ( result.afters, 'timedOut')
+					;
 
 					if (result.triggered) suite.result.specsRan++;
 					if (result.failed) suite.result.specsFailed++;
@@ -282,11 +304,6 @@
 				}
 			}
 
-
-			var komplete = function () {
-				klunk.report ( suite );
-			};
-
 			var runSolo = function ( callback ) {
 
 				if ( callback ) {
@@ -297,7 +314,7 @@
 					return;
 				}
 				suite.options.solo = true;
-				klunk.runSuite ( suite, komplete );
+				klunk.runSuite ( suite );
 			};
 
 			var kontrol = function ( options ) {
@@ -358,7 +375,7 @@
 
 				options : {
 					serial : parent && parent.serial,
-					timeout: null,
+					timeout: parent && parent.options.timeout,
 					silent: null,
 					callback : null },
 
@@ -373,7 +390,10 @@
 				text : text,
 				fn : fn,
 				suite : suite,
-				result: {},
+				result: {
+					befores:[],
+					afters:[]
+				},
 				matchers : {}
 			};
 		},
@@ -435,7 +455,7 @@
 			return klunk.addManager ('codas', arguments)
 		},
 		/*
-		* #expects method
+		* #expects
 		* */
 		getSuiteMatchers: function (suite) {
 			return _.extend ( {}, suite.matchers, suite.parent && klunk.getSuiteMatchers ( suite.parent ) || {} )
@@ -469,7 +489,6 @@
 			matchers.not = _.extend ({}, matchers);
 			return matchers
 		},
-
 		addMatchers : function ( matchers ) {
 			_.extend ( this, matchers )
 		},
@@ -479,7 +498,7 @@
 		matchers: {
 			toBe: function (expected) { return this.actual===expected },
 			toBeFalsy: function () { return !this.actual },
-			toBeTruthy: function () { return this.actual==true },
+			toBeTruthy: function () { return !!this.actual },
 			toBeDefined: function () { return this.actual!==undefined },
 			toHaveKey: function (expected) { return _.has (this.actual,expected)},
 			toHaveKeys : function ( expected ) {
@@ -536,9 +555,17 @@
 		any: function (obj, iter, context) {
 			var yes = false;
 			var args = _.toArray ( arguments ).slice[3];
+			var fieldName;
+			if (_.type(iter)=='String') {
+				fieldName = iter;
+				iter = function (item) {
+					return item[fieldName]
+				}
+			}
 			_.each (obj, function ( item, key ) {
-				return ( yes = iter.apply ( context || root, [item, key].concat ( args ) ))
+				return !!( yes = iter.apply ( context || root, [item, key].concat ( args ) ))
 			});
+			yes = yes || false;
 			return yes;
 
 		},
@@ -723,7 +750,7 @@
 			funs = [].concat(funs);
 
 			var cue = funs.length;
-			var erred = false;
+			var erred;
 			var next = function (error) {
 				if (error) erred = error;
 				--cue > 0 || done ( erred )
@@ -758,12 +785,13 @@
 				var timeout = fn.timeout || cx.timeout;
 
 				function done ( timedOut, error ) {
+					var z = timeout;
 					if (timedOut) {
 						var timeoutError = new _.TimeoutError ("An asynchronous function timed out");
 						_.set ( fn, 'timedOut', timedOut && timeoutError );
 						next ( timeoutError );
 					} else {
-						next  ( error );
+						next ( error );
 					}
 				}
 
@@ -813,86 +841,90 @@
 			if (suite.options.solo && suite!==top) return;
 
 
-			var space = (new Array ( indent )).join ( "  " );
-
 			if (suite===top) {
-				this.print (null, suite.text || "Running all suites");
+				this.print (0, null, suite.text || "Running all suites");
 			} else if ( suite.result.failed ) {
 
-				this.print ( null, _.sprintf("%s %s",
-					space,
-					suite.text) );
+				this.print ( indent, null, _.sprintf( "%s", suite.text) );
 			}
+
+
+			_.each (suite.topics, function ( fn, i ) {
+				if ( fn.timedOut ) this.print (indent, 'red', _.sprintf("  topic \"`%s`\" timed out", fn.text || i))
+			},this);
+			_.each (suite.codas, function ( fn, i ) {
+				if ( fn.timedOut ) this.print (indent, 'red', _.sprintf("  coda \"`%s`\" timed out", fn.text || i))
+			},this);
 
 			_.each ( suite.specs, 	this.reportSpec, 	this, indent, top );
 			_.each ( suite.suites, 	this.reportSuite, 	this, indent + 1, top);
-
-			_.each (suite.topics, function ( fn ) {
-				if ( fn.timedOut) this.print ('red', _.sprintf("%s topic \"%s\" timed out", space, fn.text || "unnamed"))
-			},this);
-			_.each (suite.codas, function ( fn ) {
-				if ( fn.timedOut) this.print ('red', _.sprintf("%s coda \"%s\" timed out", space, fn.text || "unnamed"))
-			},this);
-			_.each (suite.befores, function ( fn ) {
-				if ( fn.timedOut) this.print ('red', _.sprintf("%s beforeEach \"%s\" timed out", space, fn.text || "unnamed"))
-			},this);
-			_.each (suite.afters, function ( fn ) {
-				if ( fn.timedOut) this.print ('red', _.sprintf("%s afterEach \"%s\" timed out", space, fn.text || "unnamed"))
-			},this);
 
 
 			if (!top || top===suite) {
 
 				this.print();
 				if ( suite.result.failed ) {
-					this.print ( 'red', _.sprintf('%s of %s specs failed', suite.result.specsFailed, suite.result.totalSpecs));
+					this.print ( 0, 'red', _.sprintf('%s of %s specs failed', suite.result.specsFailed, suite.result.totalSpecs));
 				} else {
-					this.print ( 'green', _.sprintf('%s of %s specs ran', suite.result.specsRan, suite.result.totalSpecs) )
+					this.print ( 0, 'green', _.sprintf('%s of %s specs ran', suite.result.specsRan, suite.result.totalSpecs) )
 				}
 			}
 		},
 		reportSpec : function (spec, index, indent, top) {
 			indent = indent || 0;
-			var space = ( new Array ( indent ) ).join ( "  " );
 
 			if (spec.result.failed) {
-				this.print ('red',
-					_.sprintf("  %s %s: failed",
-					space,
-					spec.text
+				var reason = 'failed';
+				if (spec.result.timedOut) {
+					reason = "timed out"
+				}
+				if (!spec.result.triggered) {
+					reason = "did not execute"
+				}
+				this.print (indent, 'red',
+					_.sprintf("  spec \"`%s`\" %s",
+					spec.text,
+						reason
 				));
 				_.each (spec.result.expectations, function ( e ) {
 					if ( e.failed ) {
 						var not = e.not ? "not " : "";
-						this.print ( null, _.sprintf("  %s - expected %s %s%s %s",
-							space,
+						this.print ( indent, null, _.sprintf("  - expected %s %s%s %s",
 							e.actual,
 							not,
 							this.specNameToText ( e.name ),
 							e.expected)
 						);
-						this.print ('red', e.stack)
+						this.print (0, 'red', e.stack)
 					}
 				}, this );
-				if (spec.result.timedOut) {
-					this.print ( null, _.sprintf("  %s - time out", space))
-				}
-				if (!spec.result.triggered) {
-					this.print ( null, _.sprintf("  %s - not ran", space))
-				}
+
 			}
+			_.each (spec.result.befores, function ( stats, i ) {
+				if ( stats.timedOut ) this.print (indent, 'red', _.sprintf("    beforeEach \"`%s`\" timed out", stats.text || i))
+			},this);
+			_.each (spec.result.afters, function ( stats, i ) {
+				if ( stats.timedOut ) this.print (indent, 'red', _.sprintf("    afterEach \"`%s`\" timed out", stats.text || i))
+			},this);
+
 		},
-		print : function (color, text) {
+		print : function (indent, color, text) {
 			var ansi={};
 			ansi.red   = '\033[31m';
 			ansi.blue  = '\033[34m';
 			ansi.green  = '\033[32m';
 			ansi.reset = '\033[0m';
+			var del = this.options.colorDelimiter || '`';
+			text = (new Array(indent)).join(' ') + text;
 
 			if ( color && this.options.color ) {
-				text = ansi[color] + text + ansi.reset;
+				if ( !~text.indexOf(del)) {
+					text = ansi[color] + text + ansi.reset;
+				} else {
+					text = text.replace(new RegExp(del+"(.*?)"+del), ansi[color] + '$1' + ansi.reset)
+				}
 			}
-			this.puts.apply ( this, [].slice.call(arguments, 1) )
+			this.puts.apply ( this, [].slice.call(arguments, 2) )
 		},
 		specNameToText: function ( name ) {
 			return name.match (/(^[A-Z]?[^A-Z]*|[A-Z][^A-Z]*)/g ).join ( " " ).toLowerCase();
@@ -920,9 +952,7 @@
 		klunk.set ( options );
 		return exports;
 	};
-	exports.addMatchers = function (matchers) {
-		_.extend(klunk.matchers, matchers);
-	};
+	exports.addMatchers = klunk.addMatchers.bind(klunk.matchers);
 
 	exports.topic = {};
 

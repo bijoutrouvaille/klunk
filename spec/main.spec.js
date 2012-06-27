@@ -5,45 +5,59 @@
  * Time: 10:26 PM
  */
 
+/*
+* #toc
+* #tr TerminalReporter
+* */
+
 var klunk = typeof window != 'undefined' ? window.klunk : require ( '../klunk' );
 var _ = klunk._;
 klunk.set({autorun:true, callback : suiteDone});
 
-var suiteDone = function (top) {
+function suiteDone (top) {
 
 	var rep = function (suite) {
 
 		if (suite.text && ~suite.text.indexOf('fixture') || suite.options.silent) return;
 
-		_.each ('before,after,coda,topic'.split(','), function ( name ) {
+		var print = function (type, text, res) {
+
+			res.timedOut && console.log ( '%s "%s" function timed out', type, text );
+			res.triggered || console.log ( '%s "%s" function not triggered', type, text );
+
+		};
+
+		_.each ('coda,topic'.split(','), function ( name ) {
 			_.each (suite[name+'s'], function ( fn, i ) {
-				var n = name;
-				if ( fn.timedOut ) {
-					console.log ( 'function timed out', fn.text, name );
-				}else if (name=='before') {
-					var x=9;
-				}
-				if ( !fn.triggered ) {
-					console.log ( 'function not triggered', fn.text, name );
-				}
+				print (name, fn.text, fn);
 			});
 		});
 		_.each (suite.specs, function ( spec ) {
 			if (!spec.fn){
 				return
 			}
-			if ( spec.fn.timedOut ) {
-				console.log ( 'function timed out',spec.text );
+			if (spec.fn ) {
+				print ('spec', spec.text, spec.result);
+				_.each (['before','after'], function ( name ) {
+
+					_.each (spec.result[name+'s'], function ( stats, i ) {
+
+						print (name, i+' '+stats.text,stats)
+
+					})
+
+				})
 			}
 
 		});
 		_.each (suite.suites, rep, this)
 	};
-	rep (top);
-};
+
+	//rep (top);
+}
 klunk.addMatchers ({
 	toHaveTriggered : function () {
-		var r = _.isFunction(this.actual) ? this.actual : this.actual.fn;
+		var r = this.actual.result || this.actual;
 		this.actual = '"' + this.actual.text + '"';
 		return r.triggered
 	},
@@ -140,16 +154,17 @@ describe ( "processor function fixture", function () {
 	} );
 } ) ({silent:true, callback : function ( suite ) {
 	describe ( "triggered flag", function () {
-		it ( "is on for every processor function that is ran", function () {
-			_.each ('befores afters topics codas'.split(' '), function ( name ) {
-
-				_.each (suite[name], function ( fn ) {
-
-					this.expects ( fn ).toHaveTriggered ();
-
-				}, this)
-
-			}, this)
+		it ( "is on for every topic and function that is ran", function () {
+			this.expects ( suite.topics[0] ).toHaveTriggered ();
+			this.expects ( suite.topics[1] ).toHaveTriggered ();
+			this.expects ( suite.codas[0] ).toHaveTriggered ();
+			this.expects ( suite.codas[1] ).toHaveTriggered ();
+		} );
+		it ( "is on for beforeEach and afterEach inside spec's results", function () {
+			this.expects ( suite.specs[0].result.befores[0] ).toHaveTriggered ();
+			this.expects ( suite.specs[0].result.befores[1] ).toHaveTriggered ();
+			this.expects ( suite.specs[0].result.afters[0] ).toHaveTriggered ();
+			this.expects ( suite.specs[0].result.afters[1] ).toHaveTriggered ();
 		} );
 	} );
 }});
@@ -342,7 +357,7 @@ describe ( "addMatchers method", function () {
 		} )({matchers:{toBeAttachedBySpecOption:function(){return true}}});
 	} ) ({matchers:{toBeAttachedBySuiteOption:function(){return true}}});
 } );
-describe ( "Built in matcher", function () {
+describe ( "Built-in matcher", function () {
 	describe ( "toBeEqual", function () {
 		it ( "uses _.isEqual without the strict option", function () {
 			this.expects ( {a:true,b:{c:'1'}} ).toEqual({a:1,b:{c:1}});
@@ -379,7 +394,11 @@ describe ( "Built in matcher", function () {
 		it ( "passes if passed an empty string", function () {
 			this.expects ( '' ).toBeEmpty ();
 		} );
-
+	} );
+	describe ( "toBeTruthy", function () {
+		it ( "uses a word that is not a word to describe a thing that is expected to be some thing", function () {
+			this.expects ( 'a thing' ).toBeTruthy ();
+		} );
 	} );
 } );
 
@@ -432,7 +451,7 @@ describe ( "a fixture suite for cleanup testing", function () {
 	} ) ();
 }} );
 
-klunk.topic.kallback = false;
+
 describe ( "Callback fixture", function () {
 	var defer = function ( done ) { _.delay ( done ) };
 	describe ( "async", function () {
@@ -446,16 +465,16 @@ describe ( "Callback fixture", function () {
 	} );
 
 } ) ( {silent : true, timeout:10000, callback : function ( suite ) {
+
 	klunk.topic.kallback = suite;
-}} )();
-_.wait ( function () { return klunk.topic.kallback }, function () {
+
+}} ).suite && _.wait ( function () { return klunk.topic.kallback }, function () {
 
 	describe ( "Suite callback", function () {
 		it ( "fires with the suite as a parameter", function () {
 			this.expects ( klunk.topic.kallback ).toHaveKeys ( "befores afters suites options".split ( " " ) );
 		} );
 	} );
-
 } );
 
 describe ( "timeout fixture", function () {
@@ -497,22 +516,18 @@ describe ( "timeout fixture", function () {
 		} );
 		describe ( "on beforeEach", function () {
 			it ( "marks the function as timedOut", function () {
-				this.expects ( suite.suites[0].befores[0] ).toHaveTimedOut();
+				this.expects ( suite.suites[0].specs[0].result.befores[0] ).toHaveTimedOut();
 			} );
 			it ( "prevents the spec upon which it failed from running", function () {
-				_.each ( suite.suites[0].specs, function ( spec ) {
-					this.expects ( spec ).not.toHaveTriggered ();
-				} , this )
+				this.expects ( suite.suites[0].specs[0] ).not.toHaveTriggered ();
 			} ) ;
 		} );
 		describe ( "on afterEach in serial mode", function () {
 			it ( "marks the function as timedOut", function () {
-				this.expects ( suite.suites[1].afters[0] ).toHaveTimedOut();
+				this.expects ( suite.suites[1].specs[0].result.afters[0] ).toHaveTimedOut();
 			} );
 			it ( "prevents the specs in nested suite from running", function (  ) {
-				_.each ( suite.suites[1].suites[0].specs,function ( spec ) {
-					this.expects ( spec ).not.toHaveTriggered();
-				}, this )
+				this.expects ( suite.suites[1].suites[0].specs[0] ).not.toHaveTriggered();
 			} ) ;
 		} );
 		describe ( "on topic", function () {
@@ -520,16 +535,15 @@ describe ( "timeout fixture", function () {
 				this.expects ( suite.suites[2].topics[0] ).toHaveTimedOut();
 			} );
 			it ( "prevents the specs in nested suite from running", function (  ) {
-				_.each ( suite.suites[2].suites[0].specs,function ( spec ) {
-					this.expects ( spec ).not.toHaveTriggered();
-				}, this )
+				this.expects ( suite.suites[2].suites[0].specs[0] ).not.toHaveTriggered();
 			} ) ;
 		} );
 	} ) ();
 
 } } );
 
-xdescribe ( "TerminalReporter", function () {
+//#tr
+describe ( "TerminalReporter timeout failure display", function () {
 	describe ( "timing out a topic", function () {
 		topic ( "that never called back", function ( done ) {
 		} );
@@ -539,7 +553,7 @@ xdescribe ( "TerminalReporter", function () {
 		} );
 	} );
 	describe ( "timing out beforeEach", function () {
-		beforeEach ( "apply well and rub", function ( done ) {
+		beforeEach (  function ( done ) {
 		} );
 		it ( "shows specs as failed - not ran", function () {
 		} );
@@ -547,7 +561,7 @@ xdescribe ( "TerminalReporter", function () {
 	describe ( "timing out afterEach", function () {
 		afterEach ( "brush your teeth", function ( done ) {
 		} );
-		it ( "", function () {
+		it ( "triggers and succeeds", function () {
 		} );
 	} );
 	describe ( "timeout out codas", function () {
@@ -556,6 +570,7 @@ xdescribe ( "TerminalReporter", function () {
 	} );
 } ) ({timeout:1}) (true);
 
+//#_
 describe ( "klunk underscore methods", function () {
 	var _ = klunk._;
 	describe ( "extend", function () {
@@ -701,6 +716,30 @@ describe ( "klunk underscore methods", function () {
 		it ( "calls a getter", function () {
 			var x = {foo:function(){return 'bar'}};
 			this.expects ( _.get ( x, 'foo' ) ).toBe('bar');
+		} );
+	} );
+	describe ( "any", function () {
+		it ( "iterates using the passed function breaking on the first truthy result", function () {
+			var x = _.any([1,2,3,4], function(item){return item==3});
+			this.expects (x ).toBe(true);
+		} );
+		it ( "accepts a field name instead of an iterator, " +
+			"returning the value if a member contains a truthy value for this field", function () {
+			var found = _.any ( [
+				{a : false},
+				{a : 3},
+				{}
+			], 'a' );
+			this.expects ( found ).toBeTruthy();
+		} );
+		it ( "accepts a field name instead of an iterator, " +
+			"returning the false if no member contains a truthy value for this field", function () {
+			var found = _.any ( [
+				{a : false},
+				{a : null},
+				{}
+			], 'a' );
+			this.expects ( found ).toBeFalsy();
 		} );
 	} );
 } );
