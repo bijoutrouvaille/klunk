@@ -16,6 +16,8 @@ importantly giving you a choice to execute each suite's specs either in parallel
 ### An Example
 
 ```javascript
+var klunk = require('./klunk');
+
 describe ( "Your suite", function() {
 
 	topic (function(){
@@ -72,7 +74,16 @@ klunk.run ()
 
 ### 1 Concepts
 
-#### 1.1 Preprocessors and postprocessors
+#### 1.0 Descriptors and Operators
+
+describe, it, topic, coda, beforeEach, and afterEach are referred to as descriptors.
+Every descriptor can be disabled by prepending x to it, for example: xdescribe(...)
+would get completely ignored by klunk without errors.
+
+#### 1.1 Operators, Preprocessors, and postprocessors
+
+topic, coda, beforeEach, and afterEach will be referred to as operators.
+topic and beforeEach as preprocessors, afterEach and coda as postprocessors.
 
 beforeEach and afterEach execute serially before and after each spec.
 topic and coda execute in serial once before and after each suite, respectively.
@@ -111,7 +122,6 @@ Examples:
 
     it ("expects an asynchronous result", function(done) {...} ) ({timeout:1000,callback:testDone});
 	topic ("a remote connection", function(done){...}).timeout(1000).callback(topicDone);
-	describe.run (callback);
 
 Most options can be set in either of the two above styles.
 
@@ -121,13 +131,13 @@ Klunk has a set of global options, and a set of options for each suite, preproce
 The ease and accessibility of these is one of the most important features in klunk.
 
 Some options propagate down from parent to child. For example setting a timeout value for a suite will
-determine the timeout for all nested topic, coda, beforeEach, and afterEach methods at any level, unless
-any one of them sets their own. An option is considered unset if it's value is null, and set if it
-corresponds to its basic type, such as boolean or number.
+determine the timeout for all nested topic, coda, beforeEach, and afterEach descriptor functions at any level, unless
+any one of them sets their own. An option is considered set if its value
+corresponds to its basic type, such as boolean or number. Thus you can unset an option by passing it null.
 
-#### 2.1 Suite Options - Kontrol Objects
+#### 2.1 Local Options - Kontrol Objects
 
-Here's a reference to kontrol objects returned by each definition type. It will list options and parameters
+Here's a reference to kontrol objects returned by each descriptor type. It will list options and parameters
 that they can accept as well as the chainable methods they expose.
 
 ##### 2.1.1 describe
@@ -145,7 +155,7 @@ Options it can use:
 -	__callback__ will trigger upon the completion or timeout of all definition functions.
 -	__silent__ will prevent the suite's results from being reported. Setting this value
 		for child suites to false after setting it to true on the parent will have no effect.
--	__matchers__ this option will be covered in the matchers section
+-	__matchers__ this option will be covered in the matchers section. Propagates down.
 
 ##### 2.1.2 it
 
@@ -168,7 +178,8 @@ in an external bootstrap file. klunk.set recurs through the passed object and as
 values to the corresponding options keys.
 
 ##### A list of global options:
--	__autorun__ [default: null] true will cause klunk to run suites as they are read, without needing to call klunk.run().
+-	__autorun__ [default: null] true will cause klunk to run suites one tick after
+				they are read, without needing to call klunk.run().
 -	__serial__ [default: false] true will cause specs and suites to run one at a time.
 -	__timeout__ [default: 5000] will cause asynchronous functions to fail after a specified time.
 -	__silent__ [default: null] will prevent klunk from reporting results.
@@ -196,7 +207,7 @@ An example matcher function may look like this:
 
     toBeAMultipleOf: function (expected) { return this.actual % expected == 0 }
 
-It will be accessible and executed using a similar to jasmine syntax:
+It will become available in specs for which you define it, like so:
 
     this.expects (10).toBeAMultipleOf(5)
 
@@ -242,7 +253,6 @@ The aim for these is to be self-explanatory
 -	toHaveKey (string)
 -	toHaveKeys(string array)
 -	toEqual (object) using deep, loose comparison
--	toStrictlyEqual (object) using deep, strict comparison
 
 ### 4 The Klunk Object
 
@@ -256,6 +266,11 @@ The global object object exposes a number of hackable methods and parameters.
 -	_klunk.options_ a manual access to all of klunk's global options
 -	_klunk.set()_ is a preferred way of setting global options. It is described in the global options section
 -	_klunk.run()_ Accepts either undefined, an options object to be passed to klunk.set(), or a callback function
+
+## Caveats
+
+-	If running in the default parallel mode, using fake clocks and timers may produce undesired results.
+-	Asynchronous parallelism can become confusing quickly
 
 ## TODO
 
