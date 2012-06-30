@@ -290,7 +290,35 @@ describe ( "klunk serial execution of asynchronous specs", function () {
 			done ()
 		}, 1, this );
 	} );
+	describe ( "using the parent suite's setting", function () {
+		topic ( function ( done ) {
+			_.delay ( function () {
 
+				this.count = 0;
+				done ();
+
+			}, 20, this );
+		} );
+		it ( "finishes first test first", function ( done ) {
+			_.delay ( function () {
+				this.expects ( this.topic.count++ ).toBe ( 0 );
+				done ()
+			}, 30, this );
+		} );
+		it ( "finishes second test second", function ( done ) {
+			_.delay ( function () {
+				this.expects ( this.topic.count++ ).toBe ( 1 );
+				done ()
+			}, 15, this );
+		} );
+		it ( "finishes third test third despite having the shortest timeout", function ( done ) {
+			_.delay ( function () {
+				this.expects ( this.topic.count++ ).toBe ( 2 );
+				done ()
+			}, 1, this );
+		} );
+
+	} );
 } ) ( {serial : true} ) ;
 
 describe ( "addMatchers method", function () {
@@ -615,6 +643,9 @@ describe ( "klunk underscore methods", function () {
 			this.expects ( _.isEqual ( {a : 1, b : '2', c : {2 : 3}}, {a : true, b : 2, c : {2 : '3'}}, true ) )
 				.toBe(false);
 		} );
+		it ( "compares an empty object to a simple one", function () {
+			this.expects ( _.isEqual ( {}, {a : 1} ) ).toBe ( false );
+		} );
 	} );
 	describe ( "each", function () {
 		it ( "binds context and arguments", function () {
@@ -720,8 +751,8 @@ describe ( "klunk underscore methods", function () {
 	} );
 	describe ( "any", function () {
 		it ( "iterates using the passed function breaking on the first truthy result", function () {
-			var x = _.any([1,2,3,4], function(item){return item==3});
-			this.expects (x ).toBe(true);
+			var x = _.any([1,2,3,4], function (item) { return item==3 });
+			this.expects ( x ).toBe (true);
 		} );
 		it ( "accepts a field name instead of an iterator, " +
 			"returning the value if a member contains a truthy value for this field", function () {

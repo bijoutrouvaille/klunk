@@ -109,7 +109,7 @@
 						return ;
 					}
 
-					klunk.runChildren ( suite, topic, function () {
+					klunk.runChildren ( suite, topic, function (error) {
 
 						_.each ( suite.suites, function ( child ) {
 
@@ -140,6 +140,7 @@
 			var ops = [];
 			_.each (suite.suites, function ( childSuite ) {
 				childSuite.options.timeout = childSuite.options.timeout || suite.options.timeout;
+				childSuite.options.serial = childSuite.options.serial || suite.options.serial;
 				childSuite.options.solo ||
 					ops.push ( klunk.runSuite.bind (klunk, childSuite, parentTopic ) )
 			}) ;
@@ -150,7 +151,7 @@
 		cueDescriptors: function ( suite, name, topic, spec, level ) {
 
 			level = level || 0;
-			var functions = suite.parent
+			var functions = topic.parent
 				? klunk.cueDescriptors ( suite.parent, name, topic.parent, spec, level+1 )
 				: [];
 
@@ -220,8 +221,12 @@
 
 					var fn = spec.fn.bind (cx);
 					fn.timeout = spec.fn.timeout || cx.timeout;
-					fn.timedOut = function (val) {spec.result.timedOut = val};
-					fn.triggered = function (val) {spec.result.triggered = val};
+					fn.timedOut = function ( val ) {
+						spec.result.timedOut = val
+					};
+					fn.triggered = function ( val ) {
+						spec.result.triggered = val
+					};
 
 					ops.push (
 						_.serial.bind ( _, [
@@ -375,7 +380,7 @@
 
 				options : {
 					serial : parent && parent.serial,
-					timeout: parent && parent.options.timeout,
+					timeout: null,
 					silent: null,
 					callback : null },
 
@@ -400,6 +405,7 @@
 		it: function ( text, fn) {
 
 			var suite = klunk.suite;
+			if (fn && typeof fn!='function') throw new Error (fn + ' "it" must be a function or empty text');
 			var spec = klunk.newSpec ( text, fn, suite );
 			suite.specs.push (spec);
 
@@ -480,7 +486,7 @@
 						name: name,
 						not: not,
 						failed: not ? passed : !passed,
-						expected: fn.length ? expected : '',
+						expected: fn.length ? (cx.expected===undefined ? expected : cx.expected) : '',
 						actual: cx.actual,
 						stack:stack
 					})
@@ -655,6 +661,7 @@
 		isEqual: function (a,b, strict) {
 			if (!_.isObject(a)) return strict ? a===b : a==b;
 			if (!_.isObject(b)) return false;
+			if (_.size (a)!=_.size(b)) return false;
 			return !_.any (a, function ( v, key ) {
 				return !_.isEqual ( v, b[key], strict )
 			})
@@ -720,13 +727,18 @@
 				clearInterval(i);
 				callback.call ( context, true );
 			}, timeout );
-			var i = setInterval(function () {
+			var i = setInterval(checkValue, sleep );
+
+			if (sleep!==0) checkValue();
+
+			function checkValue () {
 				if ( comparator.apply ( context, args ) ) {
 					clearTimeout ( t );
 					clearInterval ( i );
 					callback.call ( context, false );
 				}
-			}, sleep );
+			}
+
 		},
 		serial : function ( funs, cx, done ) {
 
@@ -895,7 +907,7 @@
 							this.specNameToText ( e.name ),
 							e.expected)
 						);
-						this.print (0, 'red', e.stack)
+						this.print (0, 'red', e.stack + '\n')
 					}
 				}, this );
 
